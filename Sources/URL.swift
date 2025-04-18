@@ -4,6 +4,10 @@ import Foundation
 
 public extension URL {
     var isHidden: Bool {
-        (try? resourceValues(forKeys: [.isHiddenKey]))?.isHidden == true
+        tryLog { try resourceValues(forKeys: [.isHiddenKey]).isHidden } == true
+    }
+    
+    var isDirectory: Bool {
+        tryLog { try resourceValues(forKeys: [.isDirectoryKey]).isDirectory } == true
     }
 }
