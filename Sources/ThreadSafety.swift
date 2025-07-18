@@ -2,9 +2,14 @@
 
 import Foundation
 
+@propertyWrapper
 public final class LockedVar<Value>: @unchecked Sendable {
     private var _value: Value
     private let lock = NSLock()
+
+    public init(wrappedValue: Value) {
+        self._value = wrappedValue
+    }
 
     public init(_ value: Value) {
         self._value = value
@@ -22,26 +27,16 @@ public final class LockedVar<Value>: @unchecked Sendable {
             _value = newValue
         }
     }
+    
+    public var wrappedValue: Value {
+        get { value }
+        set { value = newValue }
+    }
+    
+    public var projectedValue: LockedVar<Value> {
+        return self
+    }
 }
-
-//@propertyWrapper struct LockedVar<Value>: @unchecked Sendable {
-//    let lock: NSLock
-//    var value: Value
-//
-//    init(wrappedValue: Value, lock: NSLock = NSLock()) {
-//        self.value = wrappedValue
-//        self.lock = lock
-//    }
-//
-//    var wrappedValue: Value {
-//        get {
-//            lock.locked { value }
-//        }
-//        set {
-//            lock.locked { value = newValue }
-//        }
-//    }
-//}
 
 extension NSLock {
     // use it for compatibility with Linux
