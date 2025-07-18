@@ -39,6 +39,20 @@ public struct StringError: Error, CustomStringConvertible {
     }
 }
 
+struct ErrorDescription: Error, LocalizedError {
+    let inner: Error
+    let description: String
+    
+    init(inner: Error, description: String) {
+        self.inner = inner
+        self.description = description
+    }
+    
+    var errorDescription: String? {
+        description
+    }
+}
+
 public protocol AdditionalInfoError {
     var additionalInfo: [String: String] { get }
 }
