@@ -62,3 +62,7 @@ extension NSError: AdditionalInfoError {
         userInfo.compactMapValues { $0 as? String }
     }
 }
+
+public enum Error9: Error {
+    case unsupported
+}
