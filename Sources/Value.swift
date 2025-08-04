@@ -32,7 +32,8 @@ private extension String {
 
 public extension String {
     static let emptyVar: StringVar = EmptyVar()
-    static func makeVar(get: @escaping () -> String, set: @escaping (String) -> Void) -> StringVar {
+    static func makeVar(get: @escaping () -> String,
+                        set: @escaping (String) -> Void = { _ in }) -> StringVar {
         StringBlock(get: get, set: set)
     }
 }
