@@ -65,4 +65,7 @@ extension NSError: AdditionalInfoError {
 
 public enum Error9: Error {
     case unsupported
+    case jsonEncode(String)
+    case jsonDecode(String)
+    case stringData(String)
 }
