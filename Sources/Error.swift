@@ -2,21 +2,37 @@
 
 import Foundation
 
+public protocol TechnicalError: Error {
+    var technicalDescription: String { get }
+}
+
+public protocol DisplayError: Error {
+    var displayDescription: String { get }
+}
+
 public extension Error {
     var friendlyDescription: String {
+        if let error = self as? DisplayError {
+            return error.displayDescription
+        }
+        
         if let error = self as? LocalizedError {
             return error.errorDescription ?? error.localizedDescription
         }
-        else {
-            return (self as CustomStringConvertible).description
-        }
+
+        return (self as CustomStringConvertible).description
     }
     
     var techDescription: String {
+        if let error = self as? TechnicalError {
+            return error.technicalDescription
+        }
+
         if let error = self as? LocalizedError {
             return "[case0] " + (error.errorDescription ?? error.localizedDescription)
         }
-        else if let error = self as? Codable {
+        
+        if let error = self as? Codable {
             if let data = try? JSONEncoder().encode(error),
                 let string = String(data: data, encoding: .utf8) {
                 return "[case1] " + String(describing: self) + ". JSON " + string
@@ -25,9 +41,8 @@ public extension Error {
                 return "[case2] " + String(describing: self)
             }
         }
-        else {
-            return "[case3] " + (self as CustomStringConvertible).description
-        }
+
+        return "[case3] " + (self as CustomStringConvertible).description
     }
 }
 
