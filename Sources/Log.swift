@@ -66,11 +66,16 @@ public class Logger {
     func log(info: String) {
         _adapters.value[flow]?.forEach { $0.log(info: info) }
     }
+    
+    func log(warning: String) {
+        _adapters.value[flow]?.forEach { $0.log(warning: warning) }
+    }
 }
 
 public protocol LogAdapter {
     func log(error: Error, info: String?)
     func log(event: String, parameters: [String: String])
+    func log(warning: String)
     func log(info: String)
     func set(property: String, for key: String)
 }
@@ -92,6 +97,10 @@ public struct StdoutLogger: LogAdapter {
     
     public func log(event: String, parameters: [String: String]) {
         print("🟣 \(event)")
+    }
+    
+    public func log(warning: String) {
+        print("🟠 \(warning)")
     }
     
     public func log(info: String) {
@@ -118,6 +127,14 @@ public func log(event: String, parameters: [String: String] = [:]) {
 
 public func log(_ info: String) {
     Logger.shared.log(info: info)
+}
+
+public func log(warning: String) {
+    Logger.shared.log(warning: warning)
+}
+
+public func log(warning: Error) {
+    Logger.shared.log(warning: warning.techDescription)
 }
 
 public func tryLog<T>(_ block: () throws -> T) -> T? {
