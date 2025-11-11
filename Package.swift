@@ -11,6 +11,12 @@ let package = Package(
     ],
     targets: [
         .target(name: "Utils9",
-                path: "Sources")
+                path: "Sources"),
+        .testTarget(
+            name: "Utils9Tests",
+            dependencies: [
+                .target(name: "Utils9"),
+            ]
+        )
     ]
 )
