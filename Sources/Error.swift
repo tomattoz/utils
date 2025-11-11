@@ -84,3 +84,9 @@ public enum Error9: Error {
     case jsonDecode(String)
     case stringData(String)
 }
+
+public extension Error9 {
+    struct Timeout: Error {
+        public init() {}
+    }
+}
