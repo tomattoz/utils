@@ -11,6 +11,10 @@ public protocol DisplayError: Error {
 }
 
 public extension Error {
+    var friendlyTitle: String? {
+        (self as NSError).what
+    }
+    
     var friendlyDescription: String {
         if let error = self as? DisplayError {
             return error.displayDescription
@@ -18,6 +22,10 @@ public extension Error {
         
         if let error = self as? LocalizedError {
             return error.errorDescription ?? error.localizedDescription
+        }
+        
+        if !(self as NSError).userInfo.isEmpty, let why = (self as NSError).why, !why.isEmpty {
+            return why
         }
 
         return (self as CustomStringConvertible).description
@@ -29,20 +37,20 @@ public extension Error {
         }
 
         if let error = self as? LocalizedError {
-            return "[case0] " + (error.errorDescription ?? error.localizedDescription)
+            return (error.errorDescription ?? error.localizedDescription)
         }
         
         if let error = self as? Codable {
             if let data = try? JSONEncoder().encode(error),
                 let string = String(data: data, encoding: .utf8) {
-                return "[case1] " + String(describing: self) + ". JSON " + string
+                return String(describing: self) + ". JSON " + string
             }
             else {
-                return "[case2] " + String(describing: self)
+                return String(describing: self)
             }
         }
 
-        return "[case3] " + (self as CustomStringConvertible).description
+        return (self as CustomStringConvertible).description
     }
 }
 
@@ -75,6 +83,32 @@ public protocol AdditionalInfoError {
 extension NSError: AdditionalInfoError {
     public var additionalInfo: [String : String] {
         userInfo.compactMapValues { $0 as? String }
+    }
+}
+
+private extension NSError {
+    var underlying: NSError? {
+        return userInfo[NSUnderlyingErrorKey] as? NSError
+    }
+
+    var what: String? {
+        localizedFailureReason ?? underlying?.what
+    }
+
+    var why: String? {
+        if let result = self.userInfo[NSLocalizedDescriptionKey] as? String {
+            return result
+        }
+        else if let result = self.userInfo[NSLocalizedFailureErrorKey] as? String {
+            return result
+        }
+        else {
+            return underlying?.why
+        }
+    }
+
+    var how: String? {
+        localizedRecoverySuggestion ?? underlying?.how
     }
 }
 
