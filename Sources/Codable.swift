@@ -2,13 +2,12 @@
 
 import Foundation
 
-public extension String {
-    init(encodable src: Encodable) throws {
-        let encoder = JSONEncoder()
-        let data = try encoder.encode(src)
+public extension JSONEncoder {
+    func encodeAsString<T>(_ value: T) throws -> String where T : Encodable {
+        let data: Data = try encode(value)
         
         if let string = String(data: data, encoding: .utf8) {
-            self = string
+            return string
         }
         else {
             throw Error9.stringFromData(data)
@@ -16,13 +15,13 @@ public extension String {
     }
 }
 
-public extension Decodable {
-    init(string: String) throws {
+public extension JSONDecoder {
+    func decode<T>(_ type: T.Type, from string: String) throws -> T where T : Decodable {
         guard let data = string.data(using: .utf8) else {
             throw Error9.stringData(string)
         }
         
-        self = try JSONDecoder().decode(Self.self, from: data)
+        return try JSONDecoder().decode(T.self, from: data)
     }
 }
 
