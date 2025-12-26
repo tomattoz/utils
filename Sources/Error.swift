@@ -28,7 +28,17 @@ public extension Error {
             return why
         }
 
+        if !(self as NSError).userInfo.isEmpty, let what = (self as NSError).what, !what.isEmpty {
+            return what
+        }
+
         return (self as CustomStringConvertible).description
+    }
+    
+    var friendlyDescriptionNotTitle: String {
+        friendlyDescription != friendlyTitle
+        ? friendlyDescription
+        : ""
     }
     
     var techDescription: String {
