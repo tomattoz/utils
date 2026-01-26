@@ -4,12 +4,14 @@ import Foundation
 
 public protocol AsyncThrowingQueue {
     func exec<Result>(_ block: () async throws -> Result) async throws -> Result
+    func cancel() async
 }
 
 public actor TaskQueue: AsyncThrowingQueue {
     private let capacity: UInt
     private var activeCount: UInt = 0
-    private var continuations = [CheckedContinuation<Void, Never>]()
+    private var continuations = [CheckedContinuation<Void, Error>]()
+    private var cancellations = [UUID: () async -> Void]()
 
     public init(capacity: UInt = 1) {
         self.capacity = capacity
@@ -21,7 +23,7 @@ public actor TaskQueue: AsyncThrowingQueue {
             return try await _exec(block)
         }
         else {
-            await withCheckedContinuation { continuation in
+            try await withCheckedThrowingContinuation { continuation in
                 _exec(continuation: continuation)
             }
             
@@ -29,7 +31,14 @@ public actor TaskQueue: AsyncThrowingQueue {
         }
     }
     
-    private func _exec(continuation: CheckedContinuation<Void, Never>) {
+    public func cancel() async {
+        continuations.forEach { $0.resume(throwing: CancellationError()) }
+        continuations.removeAll()
+        for i in cancellations { await i.value() }
+        cancellations.removeAll()
+    }
+    
+    private func _exec(continuation: CheckedContinuation<Void, Error>) {
         if activeCount < capacity {
             activeCount += 1
             continuation.resume()
@@ -51,8 +60,21 @@ public actor TaskQueue: AsyncThrowingQueue {
         }
         
         do {
-            let result = try await block()
-            return result
+            return try await withoutActuallyEscaping(block) { escapedBlock in
+                let id = UUID()
+                let task = Task {
+                    try await escapedBlock()
+                }
+                
+                self.cancellations[id] = {
+                    task.cancel()
+                    _ = try? await task.value
+                }
+                let result = try await task.value
+                
+                self.cancellations[id] = nil
+                return result
+            }
         }
         catch {
             throw error
@@ -78,11 +100,14 @@ public actor IntervalTaskQueue: AsyncThrowingQueue {
                 try await Task.sleep(nanoseconds: nanos)
             }
             
-            log("INTERVAL \(Date().timeIntervalSince(self.lastExecDate))")
             let result = try await block()
             self.lastExecDate = Date()
             return result
         }
+    }
+    
+    public func cancel() async {
+        await queue.cancel()
     }
 }
 
@@ -134,6 +159,10 @@ public struct AsyncThrowingArrayQueue: AsyncThrowingQueue {
     
     public func exec<Result>(_ block: () async throws -> Result) async throws -> Result {
         try await array.exec(block)
+    }
+    
+    public func cancel() async {
+        for i in array { await i.cancel() }
     }
 }
 
