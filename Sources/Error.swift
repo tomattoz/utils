@@ -45,10 +45,6 @@ public extension Error {
         if let error = self as? TechnicalError {
             return error.technicalDescription
         }
-
-        if let error = self as? LocalizedError {
-            return (error.errorDescription ?? error.localizedDescription)
-        }
         
         if let error = self as? Codable {
             if let data = try? JSONEncoder().encode(error),
