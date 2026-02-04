@@ -68,7 +68,7 @@ public struct StringError: Error, CustomStringConvertible {
     }
 }
 
-public struct ErrorDescription: Error, LocalizedError {
+public struct ErrorDescription: Error, DisplayError {
     public let inner: Error
     public let description: String
     
@@ -77,7 +77,7 @@ public struct ErrorDescription: Error, LocalizedError {
         self.description = description
     }
     
-    public var errorDescription: String? {
+    public var displayDescription: String {
         description
     }
 }
@@ -126,8 +126,23 @@ public enum Error9: Error {
     case stringFromData(Data)
 }
 
+extension Error9: LocalizedError {
+    public var errorDescription: String? {
+        switch self {
+        case .unsupported: NSLocalizedString("error.unsupported", bundle: .module, comment: "")
+        case .jsonEncode: NSLocalizedString("error.json.encode", bundle: .module, comment: "")
+        case .jsonDecode: NSLocalizedString("error.json.decode", bundle: .module, comment: "")
+        case .stringData: NSLocalizedString("error.data.for.string", bundle: .module, comment: "")
+        case .stringFromData: NSLocalizedString("error.string.for.data", bundle: .module, comment: "")
+        }
+    }
+}
+
 public extension Error9 {
-    struct Timeout: Error {
+    struct Timeout: Error, LocalizedError {
         public init() {}
+        public var errorDescription: String? {
+            NSLocalizedString("error.timeout", bundle: .module, comment: "")
+        }
     }
 }

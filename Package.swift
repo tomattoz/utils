@@ -11,7 +11,8 @@ let package = Package(
     ],
     targets: [
         .target(name: "Utils9",
-                path: "Sources"),
+                path: "Sources",
+                resources: [.process("Resources")]),
         .testTarget(
             name: "Utils9Tests",
             dependencies: [
