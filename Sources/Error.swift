@@ -102,10 +102,12 @@ private extension NSError {
     }
 
     var why: String? {
-        if let result = self.userInfo[NSLocalizedDescriptionKey] as? String {
+        /* use strings constants for compatibility with server side swift */
+        
+        if let result = self.userInfo["NSLocalizedDescription"] as? String {
             return result
         }
-        else if let result = self.userInfo[NSLocalizedFailureErrorKey] as? String {
+        else if let result = self.userInfo["NSLocalizedFailure"] as? String {
             return result
         }
         else {
