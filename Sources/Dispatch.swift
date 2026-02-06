@@ -2,6 +2,7 @@
 
 import Foundation
 
+@MainActor
 public func dispatchMainSync<T>(execute block: () -> T) -> T {
     if Thread.isMainThread {
         block()
@@ -13,6 +14,7 @@ public func dispatchMainSync<T>(execute block: () -> T) -> T {
     }
 }
 
+@MainActor
 public func dispatchMainSync<T>(execute block: () throws -> T) throws -> T {
     if Thread.isMainThread {
         try block()

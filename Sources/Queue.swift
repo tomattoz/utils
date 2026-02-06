@@ -2,12 +2,12 @@
 
 import Foundation
 
-public protocol AsyncThrowingQueue {
-    func exec<Result>(_ block: () async throws -> Result) async throws -> Result
+public protocol AsyncThrowingQueue: Sendable {
+    func exec<Result: Sendable>(_ block: @Sendable () async throws -> Result) async throws -> Result
     func cancel() async
 }
 
-public actor TaskQueue: AsyncThrowingQueue {
+public actor TaskQueue: AsyncThrowingQueue, Sendable {
     private let capacity: UInt
     private var activeCount: UInt = 0
     private var continuations = [CheckedContinuation<Void, Error>]()
@@ -17,7 +17,8 @@ public actor TaskQueue: AsyncThrowingQueue {
         self.capacity = capacity
     }
     
-    public func exec<Result>(_ block: () async throws -> Result) async throws -> Result {
+    public func exec<Result: Sendable>(_ block: @Sendable () async throws -> Result)
+    async throws -> Result {
         if activeCount < capacity {
             activeCount += 1
             return try await _exec(block)
@@ -48,7 +49,8 @@ public actor TaskQueue: AsyncThrowingQueue {
         }
     }
     
-    private func _exec<Result>(_ block: () async throws -> Result) async throws -> Result {
+    private func _exec<Result: Sendable>(_ block: @Sendable () async throws -> Result)
+    async throws -> Result {
         defer {
             if let first = continuations.first {
                 continuations.removeFirst()
@@ -91,9 +93,10 @@ public actor IntervalTaskQueue: AsyncThrowingQueue {
         self.interval = interval
     }
     
-    public func exec<Result>(_ block: () async throws -> Result) async throws -> Result {
+    public func exec<Result: Sendable>(_ block: @Sendable () async throws -> Result)
+    async throws -> Result {
         try await queue.exec {
-            let interval = Date().timeIntervalSince(self.lastExecDate)
+            let interval = await Date().timeIntervalSince(self.lastExecDate)
             
             if interval < self.interval {
                 let nanos = UInt64((self.interval - interval) * 1_000_000_000)
@@ -101,7 +104,7 @@ public actor IntervalTaskQueue: AsyncThrowingQueue {
             }
             
             let result = try await block()
-            self.lastExecDate = Date()
+            await update(lastExecDate: Date())
             return result
         }
     }
@@ -109,9 +112,13 @@ public actor IntervalTaskQueue: AsyncThrowingQueue {
     public func cancel() async {
         await queue.cancel()
     }
+    
+    private func update(lastExecDate: Date) {
+        self.lastExecDate = lastExecDate
+    }
 }
 
-public actor AccessQueue<T> {
+public actor AccessQueue<T: Sendable> {
     private var objects: [T]
     private var continuations = [CheckedContinuation<T, Never>]()
 
@@ -119,7 +126,8 @@ public actor AccessQueue<T> {
         self.objects = objects
     }
     
-    public func exec<Result>(_ block: (T) async throws -> Result) async throws -> Result {
+    public func exec<Result: Sendable>(_ block: @Sendable (T) async throws -> Result)
+    async throws -> Result {
         let object: T
         
         if !objects.isEmpty {
@@ -157,7 +165,7 @@ public struct AsyncThrowingArrayQueue: AsyncThrowingQueue {
         self.array = array
     }
     
-    public func exec<Result>(_ block: () async throws -> Result) async throws -> Result {
+    public func exec<Result: Sendable>(_ block: @Sendable () async throws -> Result) async throws -> Result {
         try await array.exec(block)
     }
     
@@ -167,16 +175,69 @@ public struct AsyncThrowingArrayQueue: AsyncThrowingQueue {
 }
 
 private extension Array where Element == AsyncThrowingQueue {
-    func exec<Result>(_ block: () async throws -> Result) async throws -> Result {
+    func exec<Result: Sendable>(_ block: @Sendable () async throws -> Result)
+    async throws -> Result {
         if self.isEmpty {
             return try await block()
         }
         else {
-            var copy = self
-           
-            return try await copy.removeLast().exec {
-                return try await copy.exec(block)
+            let head = self.last!
+            let tail = Array(self.dropLast())
+            
+            return try await head.exec { @Sendable [tail] in
+                try await tail.exec(block)
             }
         }
+    }
+}
+
+public actor PriorityQueue: AsyncThrowingQueue {
+    private let lowPriorityQueue = TaskQueue(capacity: 10)
+    private let regularPriorityQueue = TaskQueue(capacity: 5)
+    private let highPriorityQueue = TaskQueue(capacity: 2)
+
+    private var inner: TaskQueue {
+        get async {
+            switch Task.currentPriority {
+            case .background, .utility, .low: return lowPriorityQueue
+            case .medium: return regularPriorityQueue
+            case .high, .userInitiated: return highPriorityQueue
+            default: assertionFailure(); return regularPriorityQueue
+            }
+        }
+    }
+
+    public init() {}
+    
+    public func exec<Result: Sendable>(_ block: @Sendable () async throws -> Result)
+    async throws -> Result {
+        try await inner.exec(block)
+    }
+    
+    public func cancel() async {
+        await lowPriorityQueue.cancel()
+        await regularPriorityQueue.cancel()
+        await highPriorityQueue.cancel()
+    }
+}
+
+public actor DebounceTaskQueue: AsyncThrowingQueue {
+    private let debounce: IntervalTaskQueue
+    private let inner: AsyncThrowingQueue
+    
+    public init(_ inner: AsyncThrowingQueue, interval: TimeInterval) {
+        self.debounce = .init(interval: interval)
+        self.inner = inner
+    }
+    
+    public func exec<Result: Sendable>(_ block: @Sendable () async throws -> Result)
+    async throws -> Result {
+        try await debounce.exec {}
+        return try await block()
+    }
+    
+    public func cancel() async {
+        await inner.cancel()
+        await debounce.cancel()
     }
 }
