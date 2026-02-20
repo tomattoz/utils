@@ -48,6 +48,10 @@ public class AnyVar<Value> {
 public class BoxedVar<Value> {
     public var wrappedValue: Value
     
+    public init(wrappedValue: Value) {
+        self.wrappedValue = wrappedValue
+    }
+
     public init(_ value: Value) {
         self.wrappedValue = value
     }
@@ -91,5 +95,18 @@ public final class LockedVar<Value>: @unchecked Sendable {
     
     public var projectedValue: LockedVar<Value> {
         return self
+    }
+}
+
+@propertyWrapper
+class UncheckedVar<Value>: @unchecked Sendable {
+    var wrappedValue: Value
+
+    init(wrappedValue: Value) {
+        self.wrappedValue = wrappedValue
+    }
+
+    init(_ value: Value) {
+        self.wrappedValue = value
     }
 }

@@ -34,8 +34,16 @@ public actor TaskQueue: AsyncThrowingQueue {
     public func cancel() async {
         continuations.forEach { $0.resume(throwing: CancellationError()) }
         continuations.removeAll()
-        for i in cancellations { await i.value() }
-        cancellations.removeAll()
+       
+        await withTaskGroup { group in
+            for i in cancellations {
+                group.addTask {
+                    await i.value()
+                }
+            }
+            
+            cancellations.removeAll()
+        }
     }
     
     private func _exec(continuation: CheckedContinuation<Void, Error>) {
@@ -61,19 +69,22 @@ public actor TaskQueue: AsyncThrowingQueue {
         
         do {
             return try await withoutActuallyEscaping(block) { escapedBlock in
-                let id = UUID()
-                let task = Task {
-                    try await escapedBlock()
+                try await withThrowingTaskGroup { group in
+                    let id = UUID()
+                    defer { cancellations[id] = nil }
+
+                    group.addTask {
+                        try await escapedBlock()
+                    }
+                    
+                    var cancellableGroup = group
+                    cancellations[id] = {
+                        cancellableGroup.cancelAll()
+                        try? await cancellableGroup.waitForAll()
+                    }
+                    
+                    return try await group.next()!
                 }
-                
-                self.cancellations[id] = {
-                    task.cancel()
-                    _ = try? await task.value
-                }
-                let result = try await task.value
-                
-                self.cancellations[id] = nil
-                return result
             }
         }
         catch {
@@ -163,6 +174,57 @@ public struct AsyncThrowingArrayQueue: AsyncThrowingQueue {
     
     public func cancel() async {
         for i in array { await i.cancel() }
+    }
+}
+
+public struct PriorityQueue: AsyncThrowingQueue {
+    private let lowPriorityQueue = TaskQueue(capacity: 10)
+    private let regularPriorityQueue = TaskQueue(capacity: 5)
+    private let highPriorityQueue = TaskQueue(capacity: 2)
+
+    private var inner: TaskQueue {
+        get async {
+            switch Task.currentPriority {
+            case .background, .utility, .low: return lowPriorityQueue
+            case .medium: return regularPriorityQueue
+            case .high, .userInitiated: return highPriorityQueue
+            default: assertionFailure(); return regularPriorityQueue
+            }
+        }
+    }
+
+    public init() {}
+    
+    public func exec<Result: Sendable>(_ block: () async throws -> Result)
+    async throws -> Result {
+        try await inner.exec(block)
+    }
+    
+    public func cancel() async {
+        await lowPriorityQueue.cancel()
+        await regularPriorityQueue.cancel()
+        await highPriorityQueue.cancel()
+    }
+}
+
+public struct DebounceTaskQueue: AsyncThrowingQueue {
+    private let debounce: IntervalTaskQueue
+    private let inner: AsyncThrowingQueue
+    
+    public init(_ inner: AsyncThrowingQueue, interval: TimeInterval) {
+        self.debounce = .init(interval: interval)
+        self.inner = inner
+    }
+    
+    public func exec<Result>(_ block: () async throws -> Result)
+    async throws -> Result {
+        try await debounce.exec {}
+        return try await block()
+    }
+    
+    public func cancel() async {
+        await inner.cancel()
+        await debounce.cancel()
     }
 }
 
