@@ -166,6 +166,57 @@ public struct AsyncThrowingArrayQueue: AsyncThrowingQueue {
     }
 }
 
+public struct PriorityQueue: AsyncThrowingQueue {
+    private let lowPriorityQueue = TaskQueue(capacity: 10)
+    private let regularPriorityQueue = TaskQueue(capacity: 5)
+    private let highPriorityQueue = TaskQueue(capacity: 2)
+
+    private var inner: TaskQueue {
+        get async {
+            switch Task.currentPriority {
+            case .background, .utility, .low: return lowPriorityQueue
+            case .medium: return regularPriorityQueue
+            case .high, .userInitiated: return highPriorityQueue
+            default: assertionFailure(); return regularPriorityQueue
+            }
+        }
+    }
+
+    public init() {}
+    
+    public func exec<Result: Sendable>(_ block: () async throws -> Result)
+    async throws -> Result {
+        try await inner.exec(block)
+    }
+    
+    public func cancel() async {
+        await lowPriorityQueue.cancel()
+        await regularPriorityQueue.cancel()
+        await highPriorityQueue.cancel()
+    }
+}
+
+public struct DebounceTaskQueue: AsyncThrowingQueue {
+    private let debounce: IntervalTaskQueue
+    private let inner: AsyncThrowingQueue
+    
+    public init(_ inner: AsyncThrowingQueue, interval: TimeInterval) {
+        self.debounce = .init(interval: interval)
+        self.inner = inner
+    }
+    
+    public func exec<Result>(_ block: () async throws -> Result)
+    async throws -> Result {
+        try await debounce.exec {}
+        return try await block()
+    }
+    
+    public func cancel() async {
+        await inner.cancel()
+        await debounce.cancel()
+    }
+}
+
 private extension Array where Element == AsyncThrowingQueue {
     func exec<Result>(_ block: () async throws -> Result) async throws -> Result {
         if self.isEmpty {

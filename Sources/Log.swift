@@ -2,7 +2,7 @@
 
 import Foundation
 
-public class Logger {
+public class Logger: @unchecked Sendable {
     public enum Flow {
         case debug
         case release
@@ -10,8 +10,8 @@ public class Logger {
     
     public static let shared = Logger()
     
-    private var _additionalInfo = [String: () -> String?]()
-    private var _adapters = LockedVar([Flow: [LogAdapter]]())
+    @LockedVar private var _additionalInfo = [String: () -> String?]()
+    @LockedVar private var _adapters = [Flow: [LogAdapter]]()
     private let flow: Flow
     
     init() {
@@ -44,31 +44,31 @@ public class Logger {
     }
 
     public func register(for flow: Flow, provider: LogAdapter) {
-        if _adapters.value[flow] == nil {
-            _adapters.value[flow] = [LogAdapter]()
+        if _adapters[flow] == nil {
+            _adapters[flow] = [LogAdapter]()
         }
         
-        _adapters.value[flow]?.append(provider)
+        _adapters[flow]?.append(provider)
     }
 
     func set(property: String, for key: String) {
-        _adapters.value[flow]?.forEach { $0.set(property: property, for: key) }
+        _adapters[flow]?.forEach { $0.set(property: property, for: key) }
     }
     
     func log(error: Error, info: String?) {
-        _adapters.value[flow]?.forEach { $0.log(error: error, info: info) }
+        _adapters[flow]?.forEach { $0.log(error: error, info: info) }
     }
     
     func log(event: String, parameters: [String: String]) {
-        _adapters.value[flow]?.forEach { $0.log(event: event, parameters: parameters) }
+        _adapters[flow]?.forEach { $0.log(event: event, parameters: parameters) }
     }
     
     func log(info: String) {
-        _adapters.value[flow]?.forEach { $0.log(info: info) }
+        _adapters[flow]?.forEach { $0.log(info: info) }
     }
     
     func log(warning: String) {
-        _adapters.value[flow]?.forEach { $0.log(warning: warning) }
+        _adapters[flow]?.forEach { $0.log(warning: warning) }
     }
 }
 
