@@ -35,7 +35,7 @@ public actor TaskQueue: AsyncThrowingQueue {
         continuations.forEach { $0.resume(throwing: CancellationError()) }
         continuations.removeAll()
        
-        await withTaskGroup { group in
+        await withTaskGroup(of: Void.self) { group in
             for i in cancellations {
                 group.addTask {
                     await i.value()
@@ -69,7 +69,7 @@ public actor TaskQueue: AsyncThrowingQueue {
         
         do {
             return try await withoutActuallyEscaping(block) { escapedBlock in
-                try await withThrowingTaskGroup { group in
+                try await withThrowingTaskGroup(of: Result.self) { group in
                     let id = UUID()
                     defer { cancellations[id] = nil }
 
